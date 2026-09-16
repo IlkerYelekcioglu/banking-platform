@@ -1,0 +1,43 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: account-service
+
+  datasource:
+    url: jdbc:postgresql://localhost:5433/account_db
+    username: bankcore
+    password: bankcore
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+
+    show-sql: true
+
+    properties:
+      hibernate:
+        format_sql: true
+
+    open-in-view: false
+
+eureka:
+  client:
+    service-url:
+      defaultZone: http://localhost:8761/eureka/
+#    healthcheck:
+#      enabled: true
+  register-with-eureka: true
+  fetch-registry: true
+  instance:
+    prefer-ip-address: true
+    lease-renewal-interval-in-seconds: 5
+    lease-expiration-duration-in-seconds: 10
+
+logging:
+  level:
+    root: INFO
+    org.springframework.boot.context.config: DEBUG
+    org.hibernate.tool.hbm2ddl: DEBUG
+    org.hibernate.SQL: DEBUG
