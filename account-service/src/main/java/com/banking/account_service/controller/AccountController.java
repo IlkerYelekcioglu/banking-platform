@@ -21,6 +21,10 @@ public class AccountController {
 
   private final AccountService accountService;
 
+
+  /*
+     Account Oluştur
+   */
   @PostMapping
   public ResponseEntity<AccountResponse> createAccount(
       @Valid @RequestBody AccountCreateRequest request) {
@@ -30,6 +34,9 @@ public class AccountController {
         .body(accountService.createAccount(request));
   }
 
+  /*
+     AccountId lerine göre account u  getir
+   */
   @GetMapping("/{accountId}")
   public ResponseEntity<AccountResponse> getAccount(
       @PathVariable UUID accountId) {
@@ -38,6 +45,10 @@ public class AccountController {
         accountService.getAccount(accountId)
     );
   }
+
+  /*
+     Müşteri Id sine göre hesapları getir.
+   */
 
   @GetMapping("/customer/{customerId}")
   public ResponseEntity<List<AccountResponse>> getCustomerAccounts(
@@ -76,6 +87,14 @@ public class AccountController {
 
     return ResponseEntity.ok(
         accountService.closeAccount(accountId)
+    );
+  }
+
+  @GetMapping
+  public ResponseEntity<List<AccountResponse>> getAllAccounts() {
+
+    return ResponseEntity.ok(
+        accountService.getAllAccounts()
     );
   }
 }

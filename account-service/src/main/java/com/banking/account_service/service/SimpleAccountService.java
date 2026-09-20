@@ -129,6 +129,15 @@ public class SimpleAccountService implements AccountService {
     return accountMapper.toResponse(closedAccount);
   }
 
+  @Override
+  public List<AccountResponse> getAllAccounts() {
+
+    return accountRepository.findAll()
+        .stream()
+        .map(accountMapper::toResponse)
+        .toList();
+  }
+
   private Account findAccountById(UUID accountId) {
 
     return accountRepository.findById(accountId)

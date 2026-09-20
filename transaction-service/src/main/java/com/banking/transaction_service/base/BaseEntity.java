@@ -1,5 +1,6 @@
-package com.banking.customer_service.base;
+package com.banking.transaction_service.base;
 
+import jakarta.persistence.Column;
 import jakarta.persistence.GeneratedValue;
 import jakarta.persistence.GenerationType;
 import jakarta.persistence.Id;
@@ -11,17 +12,19 @@ import java.util.UUID;
 import lombok.Getter;
 import lombok.Setter;
 
-@MappedSuperclass
 @Getter
 @Setter
+@MappedSuperclass
 public abstract class BaseEntity {
 
   @Id
   @GeneratedValue(strategy = GenerationType.UUID)
   private UUID id;
 
+  @Column(nullable = false, updatable = false)
   private LocalDateTime createdAt;
 
+  @Column(nullable = false)
   private LocalDateTime updatedAt;
 
   @PrePersist
@@ -38,8 +41,4 @@ public abstract class BaseEntity {
 
     updatedAt = LocalDateTime.now();
   }
-
 }
-
-
-//a96bc231-d81e-4121-9787-9050bf0b3267

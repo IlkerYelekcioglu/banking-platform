@@ -33,4 +33,7 @@ public interface AccountService {
   AccountResponse closeAccount(
       UUID accountId
   );
+
+  List<AccountResponse> getAllAccounts();
+
 }
