@@ -2,6 +2,7 @@ package com.banking.transaction_service.service;
 
 import com.banking.transaction_service.dto.request.TransactionCreateRequest;
 import com.banking.transaction_service.dto.response.TransactionResponse;
+import com.banking.transaction_service.event.FraudDecisionEvent;
 import java.util.List;
 import java.util.UUID;
 
@@ -25,4 +26,7 @@ public interface TransactionService {
 
   List<TransactionResponse> getAllTransactions();
 
+  void processFraudDecision(FraudDecisionEvent event);
+
+  void compensateTransaction(UUID transactionId);
 }

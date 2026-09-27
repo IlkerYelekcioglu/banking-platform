@@ -4,6 +4,7 @@ import com.banking.account_service.dto.request.AccountCreateRequest;
 import com.banking.account_service.dto.response.AccountBalanceResponse;
 import com.banking.account_service.dto.response.AccountResponse;
 import com.banking.account_service.enums.AccountStatus;
+import java.math.BigDecimal;
 import java.util.List;
 import java.util.UUID;
 
@@ -35,5 +36,15 @@ public interface AccountService {
   );
 
   List<AccountResponse> getAllAccounts();
+
+  AccountResponse debit(
+      UUID accountId,
+      BigDecimal amount
+  );
+
+  AccountResponse credit(
+      UUID accountId,
+      BigDecimal amount
+  );
 
 }
