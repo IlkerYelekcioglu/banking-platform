@@ -39,6 +39,14 @@ public class TransactionResponse {
 
   private BigDecimal fraudScore;
 
+  private String failureReason;
+
+  private boolean debitCompleted;
+
+  private boolean creditCompleted;
+
+  private boolean compensationCompleted;
+
   private LocalDateTime createdAt;
 
   private LocalDateTime updatedAt;

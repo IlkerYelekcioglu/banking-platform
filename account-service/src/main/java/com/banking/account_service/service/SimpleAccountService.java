@@ -8,6 +8,7 @@ import com.banking.account_service.entity.Account;
 import com.banking.account_service.enums.AccountStatus;
 import com.banking.account_service.exception.AccountNotFoundException;
 import com.banking.account_service.exception.DuplicateAccountException;
+import com.banking.account_service.exception.InsufficientBalanceException;
 import com.banking.account_service.mapper.AccountMapper;
 import com.banking.account_service.repository.AccountRepository;
 import java.util.stream.Collectors;
@@ -138,6 +139,135 @@ public class SimpleAccountService implements AccountService {
         .toList();
   }
 
+  @Override
+  @Transactional
+  public AccountResponse debit(
+      UUID accountId,
+      BigDecimal amount
+  ) {
+
+    validateAmount(amount);
+
+    Account account =
+        accountRepository
+            .findById(accountId)
+            .orElseThrow(
+                () -> new AccountNotFoundException(accountId)
+            );
+
+    if (account.getStatus() != AccountStatus.ACTIVE) {
+      throw new IllegalStateException(
+          "Account is not active."
+      );
+    }
+
+    int updatedRows =
+        accountRepository.debitIfSufficientBalance(
+            accountId,
+            amount,
+            AccountStatus.ACTIVE
+        );
+
+    if (updatedRows == 0) {
+
+      Account currentAccount =
+          accountRepository
+              .findById(accountId)
+              .orElseThrow(
+                  () ->
+                      new AccountNotFoundException(
+                          accountId
+                      )
+              );
+
+      if (currentAccount.getStatus()
+          != AccountStatus.ACTIVE) {
+
+        throw new IllegalStateException(
+            "Account is not active."
+        );
+      }
+
+      if (currentAccount.getAvailableBalance()
+          .compareTo(amount) < 0) {
+
+        throw new InsufficientBalanceException(
+            amount,
+            currentAccount.getAvailableBalance()
+        );
+      }
+
+      throw new IllegalStateException(
+          "Account was modified by another transaction. Please retry."
+      );
+    }
+
+    Account updatedAccount =
+        accountRepository
+            .findById(accountId)
+            .orElseThrow(
+                () -> new AccountNotFoundException(accountId)
+            );
+
+    return accountMapper.toResponse(updatedAccount);
+  }
+
+  @Override
+  @Transactional
+  public AccountResponse credit(
+      UUID accountId,
+      BigDecimal amount
+  ) {
+
+    validateAmount(amount);
+
+    Account account =
+        accountRepository
+            .findById(accountId)
+            .orElseThrow(
+                () -> new AccountNotFoundException(accountId)
+            );
+
+    if (account.getStatus() != AccountStatus.ACTIVE) {
+      throw new IllegalStateException(
+          "Account is not active."
+      );
+    }
+
+    int updatedRows =
+        accountRepository.creditIfActive(
+            accountId,
+            amount,
+            AccountStatus.ACTIVE
+        );
+
+    if (updatedRows == 0) {
+
+      throw new IllegalStateException(
+          "Account was modified by another transaction. Please retry."
+      );
+    }
+
+    Account updatedAccount =
+        accountRepository
+            .findById(accountId)
+            .orElseThrow(
+                () -> new AccountNotFoundException(accountId)
+            );
+
+    return accountMapper.toResponse(updatedAccount);
+  }
+
+  private void validateAmount(BigDecimal amount) {
+
+    if (amount == null
+        || amount.compareTo(BigDecimal.ZERO) <= 0) {
+
+      throw new IllegalArgumentException(
+          "Amount must be greater than zero."
+      );
+    }
+  }
   private Account findAccountById(UUID accountId) {
 
     return accountRepository.findById(accountId)

@@ -10,6 +10,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
 import java.util.UUID;
@@ -106,4 +107,33 @@ public class Transaction extends BaseEntity {
       length = 100
   )
   private String idempotencyKey;
+
+  @Column(length = 500)
+  private String failureReason;
+
+  @Column(nullable = false)
+  @Builder.Default
+  private boolean debitCompleted = false;
+
+  @Column(nullable = false)
+  @Builder.Default
+  private boolean creditCompleted = false;
+
+  @Column(nullable = false)
+  @Builder.Default
+  private boolean compensationCompleted = false;
+
+  @Column(nullable = false)
+  @Builder.Default
+  private int compensationRetryCount = 0;
+
+  private LocalDateTime nextCompensationRetryAt;
+
+  @Column(length = 1000)
+  private String compensationFailureReason;
+
+
+  @Version
+  private Long version;
+
 }

@@ -2,6 +2,7 @@ package com.banking.transaction_service.controller;
 
 import com.banking.transaction_service.dto.request.TransactionCreateRequest;
 import com.banking.transaction_service.dto.response.TransactionResponse;
+import com.banking.transaction_service.service.CompensationService;
 import com.banking.transaction_service.service.TransactionService;
 import jakarta.validation.Valid;
 import java.util.List;
@@ -22,6 +23,8 @@ import org.springframework.web.bind.annotation.RestController;
 public class TransactionController {
 
   private final TransactionService transactionService;
+
+  private final CompensationService compensationService;
 
   /**
    * Yeni transaction oluşturur.
@@ -92,4 +95,17 @@ public class TransactionController {
         )
     );
   }
+
+  @PostMapping("/{transactionId}/compensate")
+  public ResponseEntity<Void> compensateTransaction(
+      @PathVariable UUID transactionId
+  ) {
+
+    compensationService.retryCompensation(transactionId);
+
+    return ResponseEntity.noContent().build();
+  }
+
+
+
 }

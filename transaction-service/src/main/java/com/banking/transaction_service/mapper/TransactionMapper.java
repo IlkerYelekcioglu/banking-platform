@@ -35,6 +35,18 @@ public class TransactionMapper {
         .fraudScore(
             transaction.getFraudScore()
         )
+        .failureReason(
+            transaction.getFailureReason()
+        )
+        .debitCompleted(
+            transaction.isDebitCompleted()
+        )
+        .creditCompleted(
+            transaction.isCreditCompleted()
+        )
+        .compensationCompleted(
+            transaction.isCompensationCompleted()
+        )
         .createdAt(transaction.getCreatedAt())
         .updatedAt(transaction.getUpdatedAt())
         .build();

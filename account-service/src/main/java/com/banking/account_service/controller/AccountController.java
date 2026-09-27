@@ -1,5 +1,6 @@
 package com.banking.account_service.controller;
 
+import com.banking.account_service.dto.request.BalanceOperationRequest;
 import com.banking.account_service.dto.response.AccountBalanceResponse;
 import com.banking.account_service.dto.request.AccountCreateRequest;
 import com.banking.account_service.dto.response.AccountResponse;
@@ -21,10 +22,6 @@ public class AccountController {
 
   private final AccountService accountService;
 
-
-  /*
-     Account Oluştur
-   */
   @PostMapping
   public ResponseEntity<AccountResponse> createAccount(
       @Valid @RequestBody AccountCreateRequest request) {
@@ -34,9 +31,7 @@ public class AccountController {
         .body(accountService.createAccount(request));
   }
 
-  /*
-     AccountId lerine göre account u  getir
-   */
+
   @GetMapping("/{accountId}")
   public ResponseEntity<AccountResponse> getAccount(
       @PathVariable UUID accountId) {
@@ -46,9 +41,6 @@ public class AccountController {
     );
   }
 
-  /*
-     Müşteri Id sine göre hesapları getir.
-   */
 
   @GetMapping("/customer/{customerId}")
   public ResponseEntity<List<AccountResponse>> getCustomerAccounts(
@@ -95,6 +87,32 @@ public class AccountController {
 
     return ResponseEntity.ok(
         accountService.getAllAccounts()
+    );
+  }
+
+  @PostMapping("/{accountId}/debit")
+  public ResponseEntity<AccountResponse> debit(
+      @PathVariable UUID accountId,
+      @Valid @RequestBody BalanceOperationRequest request) {
+
+    return ResponseEntity.ok(
+        accountService.debit(
+            accountId,
+            request.getAmount()
+        )
+    );
+  }
+
+  @PostMapping("/{accountId}/credit")
+  public ResponseEntity<AccountResponse> credit(
+      @PathVariable UUID accountId,
+      @Valid @RequestBody BalanceOperationRequest request) {
+
+    return ResponseEntity.ok(
+        accountService.credit(
+            accountId,
+            request.getAmount()
+        )
     );
   }
 }
