@@ -138,10 +138,6 @@ public class SimpleAccountServiceTest {
         );
   }
 
-  // ---------------------------------------------------------
-  // DEBIT
-  // ---------------------------------------------------------
-
   @Test
   void debit_shouldDecreaseBalance_whenBalanceIsSufficient() {
 
@@ -386,10 +382,6 @@ public class SimpleAccountServiceTest {
         .save(any(Account.class));
   }
 
-  // ---------------------------------------------------------
-  // CREDIT
-  // ---------------------------------------------------------
-
   @Test
   void credit_shouldIncreaseBalance_whenAccountIsActive() {
 
@@ -474,10 +466,6 @@ public class SimpleAccountServiceTest {
         .findById(any());
   }
 
-  // ---------------------------------------------------------
-  // CREATE ACCOUNT
-  // ---------------------------------------------------------
-
   @Test
   void createAccount_shouldCreateActiveAccount() {
 
@@ -541,9 +529,6 @@ public class SimpleAccountServiceTest {
         .save(any(Account.class));
   }
 
-  // ---------------------------------------------------------
-  // HELPER
-  // ---------------------------------------------------------
 
   private Account createAccount(BigDecimal balance) {
 

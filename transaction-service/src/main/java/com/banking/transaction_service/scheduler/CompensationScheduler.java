@@ -18,10 +18,9 @@ public class CompensationScheduler {
       fixedDelayString = "30000"
   )
   public void retryPendingCompensations() {
-
-    log.debug(
-        "Starting compensation scheduler."
-    );
+    
+    compensationService
+        .recoverStuckCompensations();
 
     compensationService
         .processPendingCompensations();

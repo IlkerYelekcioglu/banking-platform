@@ -18,5 +18,7 @@ public class CompensationProperties {
 
   private int maxDelaySeconds = 300;
 
+  private int claimTimeoutSeconds = 120;
+
 
 }
