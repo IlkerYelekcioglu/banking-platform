@@ -1,5 +1,7 @@
 package com.banking.transaction_service.event;
 
+import com.banking.transaction_service.enums.Currency;
+import com.banking.transaction_service.enums.TransactionType;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Getter;
@@ -27,9 +29,9 @@ public class TransactionRequestedEvent {
 
   private BigDecimal amount;
 
-  private String currency;
+  private Currency currency;
 
-  private String transactionType;
+  private TransactionType transactionType;
 
   private String channel;
 
@@ -40,4 +42,6 @@ public class TransactionRequestedEvent {
   private String location;
 
   private LocalDateTime transactionDate;
+
+  private UUID eventId;
 }

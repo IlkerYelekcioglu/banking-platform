@@ -129,9 +129,10 @@ public class Transaction extends BaseEntity {
 
   private LocalDateTime nextCompensationRetryAt;
 
+  private LocalDateTime compensationClaimedAt;
+
   @Column(length = 1000)
   private String compensationFailureReason;
-
 
   @Version
   private Long version;

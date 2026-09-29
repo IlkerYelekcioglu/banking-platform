@@ -7,6 +7,9 @@ import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Modifying;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
 
 public interface TransactionRepository extends JpaRepository<Transaction, UUID> {
 
@@ -26,4 +29,49 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
   List<Transaction> findTop100ByStatusAndNextCompensationRetryAtLessThanEqualOrderByNextCompensationRetryAtAsc(TransactionStatus status, LocalDateTime currentTime);
 
+  @Modifying(
+      clearAutomatically = true,
+      flushAutomatically = true
+  )
+  @Query("""
+        UPDATE Transaction t
+        SET
+            t.status = :compensatingStatus,
+            t.compensationClaimedAt = :claimedAt
+        WHERE
+            t.id = :transactionId
+            AND t.status = :requiredStatus
+    """)
+  int claimCompensation(@Param("transactionId") UUID transactionId,@Param("requiredStatus") TransactionStatus requiredStatus,@Param("compensatingStatus") TransactionStatus compensatingStatus, @Param("claimedAt") LocalDateTime claimedAt);
+
+  @Query("""
+    SELECT t
+    FROM Transaction t
+    WHERE
+        t.status = :status
+        AND t.compensationClaimedAt <= :threshold
+""")
+  List<Transaction> findStuckCompensations(@Param("status") TransactionStatus status, @Param("threshold") LocalDateTime threshold);
+
+
+  @Modifying(
+      clearAutomatically = true,
+      flushAutomatically = true
+  )
+  @Query("""
+    UPDATE Transaction t
+    SET
+        t.status = :requiredStatus,
+        t.nextCompensationRetryAt = :retryAt,
+        t.compensationClaimedAt = null,
+        t.compensationFailureReason =
+            'Compensation claim timed out. Retrying.'
+    WHERE
+        t.id = :transactionId
+        AND t.status = :compensatingStatus
+        AND t.compensationClaimedAt <= :threshold
+""")
+  int releaseStuckCompensation(@Param("transactionId") UUID transactionId,@Param("compensatingStatus") TransactionStatus compensatingStatus, @Param("requiredStatus") TransactionStatus requiredStatus, @Param("threshold") LocalDateTime threshold, @Param("retryAt") LocalDateTime retryAt);
+
 }
+

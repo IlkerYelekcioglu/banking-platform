@@ -39,4 +39,7 @@ public class TransactionRequestedEvent {
   private String location;
 
   private LocalDateTime transactionDate;
+
+  private UUID eventId;
+
 }

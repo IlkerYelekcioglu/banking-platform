@@ -327,85 +327,139 @@ public class SimpleTransactionService
         .toUpperCase();
   }
 
+//  private void createTransactionRequestedOutboxEvent(
+//      Transaction transaction) {
+//
+//    try {
+//
+//      TransactionRequestedEvent event =
+//          TransactionRequestedEvent.builder()
+//              .transactionId(
+//                  transaction.getId()
+//              )
+//              .transactionReference(
+//                  transaction.getTransactionReference()
+//              )
+//              .sourceAccountId(
+//                  transaction.getSourceAccountId()
+//              )
+//              .destinationAccountId(
+//                  transaction.getDestinationAccountId()
+//              )
+//              .amount(
+//                  transaction.getAmount()
+//              )
+//              .currency(
+//                  transaction
+//                      .getCurrency()
+//                      .name()
+//              )
+//              .transactionType(
+//                  transaction
+//                      .getTransactionType()
+//                      .name()
+//              )
+//              .channel(
+//                  transaction.getChannel()
+//              )
+//              .ipAddress(
+//                  transaction.getIpAddress()
+//              )
+//              .deviceId(
+//                  transaction.getDeviceId()
+//              )
+//              .location(
+//                  transaction.getLocation()
+//              )
+//              .transactionDate(
+//                  transaction.getTransactionDate()
+//              )
+//              .build();
+//
+//      String payload =
+//          objectMapper.writeValueAsString(
+//              event
+//          );
+//
+//      OutboxEvent outboxEvent =
+//          OutboxEvent.builder()
+//              .aggregateType(
+//                  "Transaction"
+//              )
+//              .aggregateId(
+//                  transaction.getId()
+//              )
+//              .eventType(
+//                  "TRANSACTION_REQUESTED"
+//              )
+//              .payload(
+//                  payload
+//              )
+//              .published(false)
+//              .build();
+//
+//      outboxEventRepository.save(
+//          outboxEvent
+//      );
+//
+//    } catch (JsonProcessingException exception) {
+//
+//      throw new TransactionProcessingException(
+//          "Failed to create transaction requested outbox event.",
+//          exception
+//      );
+//    }
+//  }
+
   private void createTransactionRequestedOutboxEvent(
-      Transaction transaction) {
+      Transaction transaction
+  ) {
+
+    TransactionRequestedEvent event =
+        TransactionRequestedEvent.builder()
+            .eventId(UUID.randomUUID())
+            .transactionId(transaction.getId())
+            .transactionReference(
+                transaction.getTransactionReference()
+            )
+            .sourceAccountId(
+                transaction.getSourceAccountId()
+            )
+            .destinationAccountId(
+                transaction.getDestinationAccountId()
+            )
+            .amount(transaction.getAmount())
+            .currency(transaction.getCurrency())
+            .transactionType(transaction.getTransactionType())
+            .channel(transaction.getChannel())
+            .ipAddress(transaction.getIpAddress())
+            .deviceId(transaction.getDeviceId())
+            .location(transaction.getLocation())
+            .transactionDate(
+                transaction.getTransactionDate()
+            )
+            .build();
 
     try {
 
-      TransactionRequestedEvent event =
-          TransactionRequestedEvent.builder()
-              .transactionId(
-                  transaction.getId()
-              )
-              .transactionReference(
-                  transaction.getTransactionReference()
-              )
-              .sourceAccountId(
-                  transaction.getSourceAccountId()
-              )
-              .destinationAccountId(
-                  transaction.getDestinationAccountId()
-              )
-              .amount(
-                  transaction.getAmount()
-              )
-              .currency(
-                  transaction
-                      .getCurrency()
-                      .name()
-              )
-              .transactionType(
-                  transaction
-                      .getTransactionType()
-                      .name()
-              )
-              .channel(
-                  transaction.getChannel()
-              )
-              .ipAddress(
-                  transaction.getIpAddress()
-              )
-              .deviceId(
-                  transaction.getDeviceId()
-              )
-              .location(
-                  transaction.getLocation()
-              )
-              .transactionDate(
-                  transaction.getTransactionDate()
-              )
-              .build();
-
       String payload =
-          objectMapper.writeValueAsString(
-              event
-          );
+          objectMapper.writeValueAsString(event);
 
       OutboxEvent outboxEvent =
           OutboxEvent.builder()
-              .aggregateType(
-                  "Transaction"
-              )
-              .aggregateId(
-                  transaction.getId()
-              )
-              .eventType(
-                  "TRANSACTION_REQUESTED"
-              )
-              .payload(
-                  payload
-              )
+              .aggregateType("TRANSACTION")
+              .aggregateId(transaction.getId())
+              .eventType("TRANSACTION_REQUESTED")
+              .payload(payload)
               .published(false)
               .build();
 
-      outboxEventRepository.save(
-          outboxEvent
-      );
+      outboxEventRepository.save(outboxEvent);
 
     } catch (JsonProcessingException exception) {
 
       throw new TransactionProcessingException(
-          "Failed to create transaction requested outbox event.",
+          "Transaction requested event could not be created.",
           exception
       );
     }

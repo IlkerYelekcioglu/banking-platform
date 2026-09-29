@@ -8,4 +8,6 @@ public interface CompensationService {
 
   void processPendingCompensations();
 
+  void recoverStuckCompensations();
+
 }

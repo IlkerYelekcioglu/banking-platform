@@ -26,6 +26,8 @@ public class SimpleCompensationService implements CompensationService{
 
   private final CompensationProperties properties;
 
+  private final SimpleCompensationClaimService simpleCompensationClaimService;
+
   @Override
   public void processPendingCompensations() {
 
@@ -54,6 +56,21 @@ public class SimpleCompensationService implements CompensationService{
 
       try {
 
+        boolean claimed =
+            simpleCompensationClaimService.claim(
+                transaction.getId()
+            );
+
+        if (!claimed) {
+
+          log.debug(
+              "Compensation already claimed by another instance. " +
+                  "transactionId={}",
+              transaction.getId()
+          );
+
+          continue;
+        }
         retryCompensation(
             transaction.getId()
         );
@@ -61,7 +78,7 @@ public class SimpleCompensationService implements CompensationService{
       } catch (Exception exception) {
 
         log.error(
-            "Compensation retry failed. " +
+            "Compensation processing failed. " +
                 "transactionId={}",
             transaction.getId(),
             exception
@@ -72,7 +89,9 @@ public class SimpleCompensationService implements CompensationService{
 
   @Override
   @Transactional
-  public void retryCompensation(UUID transactionId) {
+  public void retryCompensation(
+      UUID transactionId
+  ) {
 
     Transaction transaction =
         transactionRepository
@@ -85,14 +104,35 @@ public class SimpleCompensationService implements CompensationService{
             );
 
     if (transaction.getStatus()
-        != TransactionStatus.COMPENSATION_REQUIRED) {
+        != TransactionStatus.COMPENSATING) {
 
       log.info(
-          "Transaction no longer requires compensation. " +
+          "Transaction is not in COMPENSATING state. " +
               "transactionId={}, status={}",
           transactionId,
           transaction.getStatus()
       );
+
+      return;
+    }
+
+    if (!transaction.isDebitCompleted()) {
+
+      log.error(
+          "Invalid compensation state. " +
+              "Debit was not completed. transactionId={}",
+          transactionId
+      );
+
+      transaction.setStatus(
+          TransactionStatus.FAILED
+      );
+
+      transaction.setFailureReason(
+          "Invalid compensation state: debit was not completed."
+      );
+
+      transactionRepository.save(transaction);
 
       return;
     }
@@ -105,29 +145,11 @@ public class SimpleCompensationService implements CompensationService{
           transactionId
       );
 
-      return;
-    }
-
-    if (!transaction.isDebitCompleted()) {
-
-      log.warn(
-          "Debit was not completed. " +
-              "Skipping compensation. transactionId={}",
-          transactionId
+      transaction.setStatus(
+          TransactionStatus.FAILED
       );
 
-      return;
-    }
-
-    if (transaction.getCompensationRetryCount()
-        >= properties.getMaxRetries()) {
-
-      log.error(
-          "Maximum compensation retry count reached. " +
-              "transactionId={}, retryCount={}",
-          transactionId,
-          transaction.getCompensationRetryCount()
-      );
+      transactionRepository.save(transaction);
 
       return;
     }
@@ -145,6 +167,12 @@ public class SimpleCompensationService implements CompensationService{
 
     try {
 
+      log.info(
+          "Starting compensation. " +
+              "transactionId={}, retryCount={}",
+          transactionId,
+          transaction.getCompensationRetryCount()
+      );
 
       accountClient.credit(
           transaction.getSourceAccountId(),
@@ -160,6 +188,10 @@ public class SimpleCompensationService implements CompensationService{
       );
 
       transaction.setNextCompensationRetryAt(
+          null
+      );
+
+      transaction.setCompensationClaimedAt(
           null
       );
 
@@ -204,8 +236,21 @@ public class SimpleCompensationService implements CompensationService{
 
     if (retryCount >= properties.getMaxRetries()) {
 
+      transaction.setStatus(
+          TransactionStatus.COMPENSATION_REQUIRED
+      );
+
       transaction.setNextCompensationRetryAt(
           null
+      );
+
+      transaction.setCompensationClaimedAt(
+          null
+      );
+
+      transaction.setFailureReason(
+          "Maximum compensation retries reached. " +
+              "Manual intervention required."
       );
 
       transactionRepository.save(transaction);
@@ -226,8 +271,21 @@ public class SimpleCompensationService implements CompensationService{
             retryCount
         );
 
+    transaction.setStatus(
+        TransactionStatus.COMPENSATION_REQUIRED
+    );
+
     transaction.setNextCompensationRetryAt(
         nextRetry
+    );
+
+    transaction.setCompensationClaimedAt(
+        null
+    );
+
+    transaction.setFailureReason(
+        "Compensation failed. " +
+            "Retry scheduled."
     );
 
     transactionRepository.save(transaction);
@@ -262,5 +320,57 @@ public class SimpleCompensationService implements CompensationService{
 
     return LocalDateTime.now()
         .plusSeconds(delay);
+  }
+
+
+  @Override
+  public void recoverStuckCompensations() {
+
+    LocalDateTime threshold =
+        LocalDateTime.now()
+            .minusSeconds(
+                properties.getClaimTimeoutSeconds()
+            );
+
+    List<Transaction> stuckTransactions =
+        transactionRepository
+            .findStuckCompensations(
+                TransactionStatus.COMPENSATING,
+                threshold
+            );
+
+    for (Transaction transaction : stuckTransactions) {
+
+      try {
+
+        int updatedRows =
+            transactionRepository
+                .releaseStuckCompensation(
+                    transaction.getId(),
+                    TransactionStatus.COMPENSATING,
+                    TransactionStatus.COMPENSATION_REQUIRED,
+                    LocalDateTime.now(),
+                    LocalDateTime.now()
+                );
+
+        if (updatedRows == 1) {
+
+          log.warn(
+              "Stuck compensation released. " +
+                  "transactionId={}",
+              transaction.getId()
+          );
+        }
+
+      } catch (Exception exception) {
+
+        log.error(
+            "Failed to release stuck compensation. " +
+                "transactionId={}",
+            transaction.getId(),
+            exception
+        );
+      }
+    }
   }
 }

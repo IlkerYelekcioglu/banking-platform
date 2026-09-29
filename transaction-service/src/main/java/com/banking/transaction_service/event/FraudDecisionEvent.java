@@ -17,6 +17,8 @@ import java.util.UUID;
 @AllArgsConstructor
 public class FraudDecisionEvent {
 
+  private UUID eventId;
+
   private UUID transactionId;
 
   private String transactionReference;
@@ -26,5 +28,4 @@ public class FraudDecisionEvent {
   private FraudDecision decision;
 
   private String reason;
-
 }
