@@ -7,7 +7,6 @@ import com.banking.transaction_service.dto.response.AccountResponse;
 import com.banking.transaction_service.dto.response.TransactionResponse;
 import com.banking.transaction_service.entity.OutboxEvent;
 import com.banking.transaction_service.entity.Transaction;
-import com.banking.transaction_service.enums.FraudDecision;
 import com.banking.transaction_service.enums.TransactionStatus;
 import com.banking.transaction_service.event.FraudDecisionEvent;
 import com.banking.transaction_service.event.TransactionCompletedEvent;
@@ -32,16 +31,15 @@ import org.springframework.stereotype.Service;
 
 @Service
 @RequiredArgsConstructor
-@Transactional(readOnly = true)
 @Slf4j
+@Transactional(readOnly = true)
 public class SimpleTransactionService
     implements TransactionService {
+
   private final TransactionRepository transactionRepository;
   private final TransactionMapper transactionMapper;
   private final AccountClient accountClient;
-
   private final OutboxEventRepository outboxEventRepository;
-
   private final ObjectMapper objectMapper;
 
   @Override
@@ -49,26 +47,24 @@ public class SimpleTransactionService
   public TransactionResponse createTransaction(
       TransactionCreateRequest request) {
 
+
     Transaction existingTransaction =
         transactionRepository
             .findByIdempotencyKey(
-                request.getIdempotencyKey()
-            )
+                request.getIdempotencyKey())
             .orElse(null);
 
     if (existingTransaction != null) {
 
       return transactionMapper.toResponse(
-          existingTransaction
-      );
+          existingTransaction);
     }
 
     if (request.getSourceAccountId()
         .equals(request.getDestinationAccountId())) {
 
       throw new InvalidTransactionException(
-          "Source account and destination account cannot be the same."
-      );
+          "Source account and destination account cannot be the same.");
     }
 
     if (request.getAmount() == null
@@ -76,14 +72,16 @@ public class SimpleTransactionService
         .compareTo(BigDecimal.ZERO) <= 0) {
 
       throw new InvalidTransactionException(
-          "Transaction amount must be greater than zero."
-      );
+          "Transaction amount must be greater than zero.");
     }
 
+    /*
+     * Source account.
+     */
     AccountResponse sourceAccount =
         getAccount(
-            request.getSourceAccountId()
-        );
+            request.getSourceAccountId())
+        ;
 
     AccountResponse destinationAccount =
         getAccount(
@@ -337,9 +335,6 @@ public class SimpleTransactionService
         TransactionRequestedEvent.builder()
             .eventId(UUID.randomUUID())
             .transactionId(transaction.getId())
-            .transactionReference(
-                transaction.getTransactionReference()
-            )
             .sourceAccountId(
                 transaction.getSourceAccountId()
             )
@@ -353,9 +348,6 @@ public class SimpleTransactionService
             .ipAddress(transaction.getIpAddress())
             .deviceId(transaction.getDeviceId())
             .location(transaction.getLocation())
-            .transactionDate(
-                transaction.getTransactionDate()
-            )
             .build();
 
     try {
@@ -370,6 +362,7 @@ public class SimpleTransactionService
               .eventType("TRANSACTION_REQUESTED")
               .payload(payload)
               .published(false)
+              .retryCount(0)
               .build();
 
       outboxEventRepository.save(outboxEvent);
@@ -377,7 +370,7 @@ public class SimpleTransactionService
     } catch (JsonProcessingException exception) {
 
       throw new TransactionProcessingException(
-          "Transaction requested event could not be created.",
+          "Could not create transaction requested event.",
           exception
       );
     }
@@ -393,15 +386,12 @@ public class SimpleTransactionService
             .orElseThrow(
                 () ->
                     new TransactionNotFoundException(
-                        event.getTransactionId()
-                    )
-            );
+                        event.getTransactionId()));
 
     if (transaction.getStatus() != TransactionStatus.PENDING) {
 
       log.info(
-          "Transaction already processed. " +
-              "transactionId={}, status={}",
+          "Transaction already processed. " + "transactionId={}, status={}",
           transaction.getId(),
           transaction.getStatus()
       );
@@ -413,7 +403,7 @@ public class SimpleTransactionService
         event.getFraudScore()
     );
 
-    if (event.getDecision() == FraudDecision.BLOCKED) {
+    if (event.getDecision() == com.banking.transaction_service.enums.FraudDecision.BLOCKED) {
 
       transaction.setStatus(
           TransactionStatus.BLOCKED
@@ -426,7 +416,7 @@ public class SimpleTransactionService
       transactionRepository.save(transaction);
 
       log.warn(
-          "Transaction blocked. transactionId={}, score={}, reason={}",
+          "Transaction blocked. "+ "transactionId={}, score={}, reason={}",
           transaction.getId(),
           event.getFraudScore(),
           event.getReason()
@@ -435,7 +425,7 @@ public class SimpleTransactionService
       return;
     }
 
-    if (event.getDecision() == FraudDecision.APPROVED) {
+    if (event.getDecision() == com.banking.transaction_service.enums.FraudDecision.APPROVED) {
 
       transaction.setStatus(
           TransactionStatus.PROCESSING
@@ -455,12 +445,29 @@ public class SimpleTransactionService
             transaction.getAmount()
         );
 
+    String debitOperationKey =
+        "TX-"
+            + transaction.getId()
+            + "-DEBIT";
+
     try {
 
       accountClient.debit(
           transaction.getSourceAccountId(),
-          operationRequest
-      );
+          operationRequest,
+          debitOperationKey);
+
+      transaction.setDebitCompleted(
+          true);
+
+      transactionRepository.save(
+          transaction);
+
+      log.info(
+          "Source account debited successfully. "
+              + "transactionId={}, operationKey={}",
+          transaction.getId(),
+          debitOperationKey);
 
     } catch (Exception exception) {
 
@@ -468,88 +475,47 @@ public class SimpleTransactionService
           TransactionStatus.FAILED
       );
 
+      transaction.setFailureReason(
+          "Source account debit failed.");
+
       transactionRepository.save(
           transaction
       );
 
       log.error(
-          "Source account debit failed. " +
-              "transactionId={}",
+          "Source account debit failed. "
+              + "transactionId={}",
           transaction.getId(),
           exception
       );
 
-      throw new TransactionProcessingException(
-          "Source account debit failed.",
-          exception
-      );
+      return;
     }
+
+    String creditOperationKey =
+        "TX-"
+            + transaction.getId()
+            + "-CREDIT";
 
     try {
 
       accountClient.credit(
           transaction.getDestinationAccountId(),
-          operationRequest
-      );
+          operationRequest,
+          creditOperationKey);
 
-    } catch (Exception exception) {
-
-      try {
-
-        accountClient.credit(
-            transaction.getSourceAccountId(),
-            operationRequest
-        );
-
-      } catch (Exception compensationException) {
-
-        transaction.setStatus(
-            TransactionStatus.FAILED
-        );
-
-        transactionRepository.save(
-            transaction
-        );
-
-        log.error(
-            "Destination credit failed " +
-                "and compensation also failed. " +
-                "transactionId={}",
-            transaction.getId(),
-            compensationException
-        );
-
-        throw new TransactionProcessingException(
-            "Destination credit failed " +
-                "and compensation also failed.",
-            compensationException
-        );
-      }
-
-      transaction.setStatus(
-          TransactionStatus.FAILED
-      );
-
-      transactionRepository.save(
-          transaction
-      );
-
-      log.error(
-          "Destination account credit failed. " +
-              "Compensation completed. transactionId={}",
-          transaction.getId(),
-          exception
-      );
-
-      throw new TransactionProcessingException(
-          "Destination account credit failed.",
-          exception
-      );
-    }
+      transaction.setCreditCompleted(
+          true);
 
     transaction.setStatus(
         TransactionStatus.COMPLETED
     );
+
+      transaction.setFailureReason(
+          null);
+
+      transaction.setCompensationFailureReason(
+          null);
 
     Transaction completedTransaction =
         transactionRepository.save(
@@ -560,13 +526,40 @@ public class SimpleTransactionService
         completedTransaction
     );
 
-
-    log.info(
-        "Transaction completed successfully. " +
-            "transactionId={}, reference={}",
+      log.info(
+        "Transaction completed successfully. "
+              + "transactionId={}, reference={}",
         completedTransaction.getId(),
         completedTransaction.getTransactionReference()
     );
+
+    } catch (Exception exception) {
+
+      transaction.setStatus(
+          TransactionStatus.COMPENSATION_REQUIRED);
+
+      transaction.setNextCompensationRetryAt(
+          LocalDateTime.now());
+
+      transaction.setCompensationFailureReason(
+          "Destination credit failed: "
+              + exception.getMessage());
+
+      transaction.setFailureReason(
+          "Destination credit failed. "
+              + "Compensation required.");
+
+      transactionRepository.save(
+          transaction);
+
+      log.error(
+          "Destination credit failed. "
+              + "Transaction requires compensation. "
+              + "transactionId={}, operationKey={}",
+          transaction.getId(),
+          creditOperationKey,
+          exception);
+    }
   }
 
   private void createTransactionCompletedOutboxEvent(
@@ -576,6 +569,7 @@ public class SimpleTransactionService
 
       TransactionCompletedEvent event =
           TransactionCompletedEvent.builder()
+              .eventId(UUID.randomUUID())
               .transactionId(
                   transaction.getId()
               )
@@ -609,15 +603,15 @@ public class SimpleTransactionService
 
       OutboxEvent outboxEvent =
           OutboxEvent.builder()
-              .aggregateType("Transaction")
+              .aggregateType(
+                  "TRANSACTION")
               .aggregateId(
-                  transaction.getId()
-              )
+                  transaction.getId())
               .eventType(
-                  "TRANSACTION_COMPLETED"
-              )
+                  "TRANSACTION_COMPLETED")
               .payload(payload)
               .published(false)
+              .retryCount(0)
               .build();
 
       outboxEventRepository.save(outboxEvent);
@@ -625,154 +619,7 @@ public class SimpleTransactionService
     } catch (JsonProcessingException exception) {
 
       throw new TransactionProcessingException(
-          "Failed to create transaction outbox event.",
-          exception
-      );
-    }
-  }
-  private void compensateDebit(
-      Transaction transaction,
-      BalanceOperationRequest request,
-      Exception originalException
-  ) {
-
-    try {
-
-      accountClient.credit(
-          transaction.getSourceAccountId(),
-          request
-      );
-
-      transaction.setCompensationCompleted(
-          true
-      );
-
-      transaction.setStatus(
-          TransactionStatus.FAILED
-      );
-
-      transaction.setFailureReason(
-          "Destination credit failed. " +
-              "Source account debit was successfully compensated."
-      );
-
-      transactionRepository.save(transaction);
-
-      log.info(
-          "Compensation completed successfully. " +
-              "transactionId={}",
-          transaction.getId()
-      );
-
-    } catch (Exception compensationException) {
-
-      transaction.setStatus(
-          TransactionStatus.COMPENSATION_REQUIRED
-      );
-
-      transaction.setFailureReason(
-          "Destination credit failed and " +
-              "compensation also failed."
-      );
-
-      transactionRepository.save(transaction);
-
-      log.error(
-          "CRITICAL: Compensation failed. " +
-              "transactionId={}",
-          transaction.getId(),
-          compensationException
-      );
-
-      throw new TransactionProcessingException(
-          "Transaction requires compensation.",
-          compensationException
-      );
-    }
-  }
-
-  @Override
-  @Transactional
-  public void compensateTransaction(
-      UUID transactionId
-  ) {
-
-    Transaction transaction =
-        transactionRepository
-            .findById(transactionId)
-            .orElseThrow(
-                () ->
-                    new TransactionNotFoundException(
-                        transactionId
-                    )
-            );
-
-    if (transaction.getStatus()
-        != TransactionStatus.COMPENSATION_REQUIRED) {
-
-      throw new IllegalStateException(
-          "Transaction does not require compensation."
-      );
-    }
-
-    if (!transaction.isDebitCompleted()) {
-
-      throw new IllegalStateException(
-          "Debit was not completed. Compensation is not required."
-      );
-    }
-
-    if (transaction.isCompensationCompleted()) {
-
-      log.info(
-          "Compensation already completed. transactionId={}",
-          transactionId
-      );
-
-      return;
-    }
-
-    BalanceOperationRequest request =
-        new BalanceOperationRequest(
-            transaction.getAmount()
-        );
-
-    try {
-
-      accountClient.credit(
-          transaction.getSourceAccountId(),
-          request
-      );
-
-      transaction.setCompensationCompleted(
-          true
-      );
-
-      transaction.setStatus(
-          TransactionStatus.FAILED
-      );
-
-      transaction.setFailureReason(
-          "Compensation completed successfully."
-      );
-
-      transactionRepository.save(transaction);
-
-      log.info(
-          "Manual compensation completed. transactionId={}",
-          transactionId
-      );
-
-    } catch (Exception exception) {
-
-      log.error(
-          "Compensation retry failed. transactionId={}",
-          transactionId,
-          exception
-      );
-
-      throw new TransactionProcessingException(
-          "Compensation failed again.",
+          "Failed to create transaction completed event.",
           exception
       );
     }

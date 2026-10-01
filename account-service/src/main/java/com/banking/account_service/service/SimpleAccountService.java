@@ -5,12 +5,17 @@ import com.banking.account_service.dto.response.AccountBalanceResponse;
 import com.banking.account_service.dto.request.AccountCreateRequest;
 import com.banking.account_service.dto.response.AccountResponse;
 import com.banking.account_service.entity.Account;
+import com.banking.account_service.entity.BalanceOperation;
 import com.banking.account_service.enums.AccountStatus;
+import com.banking.account_service.enums.BalanceOperationStatus;
+import com.banking.account_service.enums.BalanceOperationType;
 import com.banking.account_service.exception.AccountNotFoundException;
 import com.banking.account_service.exception.DuplicateAccountException;
+import com.banking.account_service.exception.IdempotencyKeyConflictException;
 import com.banking.account_service.exception.InsufficientBalanceException;
 import com.banking.account_service.mapper.AccountMapper;
 import com.banking.account_service.repository.AccountRepository;
+import com.banking.account_service.repository.BalanceOperationRepository;
 import java.util.stream.Collectors;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -28,6 +33,7 @@ public class SimpleAccountService implements AccountService {
   private final AccountRepository accountRepository;
   private final AccountMapper accountMapper;
   private final CustomerClient customerClient;
+  private final BalanceOperationRepository balanceOperationRepository;
 
   @Override
   @Transactional
@@ -143,21 +149,47 @@ public class SimpleAccountService implements AccountService {
   @Transactional
   public AccountResponse debit(
       UUID accountId,
-      BigDecimal amount
+      BigDecimal amount,
+      String operationKey
   ) {
 
     validateAmount(amount);
+    validateOperationKey(operationKey);
 
-    Account account =
-        accountRepository
-            .findById(accountId)
-            .orElseThrow(
-                () -> new AccountNotFoundException(accountId)
-            );
+    int insertedRows =
+        balanceOperationRepository.tryCreateOperation(
+            operationKey,
+            accountId,
+            amount,
+            BalanceOperationType.DEBIT.name()
+        );
 
-    if (account.getStatus() != AccountStatus.ACTIVE) {
+    if (insertedRows == 0) {
+
+      BalanceOperation existingOperation =
+          balanceOperationRepository
+              .findByOperationKey(operationKey)
+              .orElseThrow(
+                  () -> new IllegalStateException(
+                      "Balance operation exists but could not be loaded."
+                  )
+              );
+
+      validateExistingOperation(
+          existingOperation,
+          accountId,
+          amount,
+          BalanceOperationType.DEBIT
+      );
+
+      if (existingOperation.getStatus()
+          == BalanceOperationStatus.COMPLETED) {
+
+        return getAccountResponse(accountId);
+      }
+
       throw new IllegalStateException(
-          "Account is not active."
+          "Balance operation is still being processed. Please retry."
       );
     }
 
@@ -170,17 +202,16 @@ public class SimpleAccountService implements AccountService {
 
     if (updatedRows == 0) {
 
-      Account currentAccount =
+      Account account =
           accountRepository
               .findById(accountId)
               .orElseThrow(
-                  () ->
-                      new AccountNotFoundException(
-                          accountId
-                      )
+                  () -> new AccountNotFoundException(
+                      accountId
+                  )
               );
 
-      if (currentAccount.getStatus()
+      if (account.getStatus()
           != AccountStatus.ACTIVE) {
 
         throw new IllegalStateException(
@@ -188,12 +219,12 @@ public class SimpleAccountService implements AccountService {
         );
       }
 
-      if (currentAccount.getAvailableBalance()
+      if (account.getAvailableBalance()
           .compareTo(amount) < 0) {
 
         throw new InsufficientBalanceException(
             amount,
-            currentAccount.getAvailableBalance()
+            account.getAvailableBalance()
         );
       }
 
@@ -206,8 +237,24 @@ public class SimpleAccountService implements AccountService {
         accountRepository
             .findById(accountId)
             .orElseThrow(
-                () -> new AccountNotFoundException(accountId)
+                () -> new AccountNotFoundException(
+                    accountId
+                )
             );
+
+    int completedRows =
+        balanceOperationRepository.markAsCompleted(
+            operationKey,
+            updatedAccount.getBalance(),
+            updatedAccount.getAvailableBalance()
+        );
+
+    if (completedRows != 1) {
+
+      throw new IllegalStateException(
+          "Balance operation could not be completed."
+      );
+    }
 
     return accountMapper.toResponse(updatedAccount);
   }
@@ -216,21 +263,47 @@ public class SimpleAccountService implements AccountService {
   @Transactional
   public AccountResponse credit(
       UUID accountId,
-      BigDecimal amount
+      BigDecimal amount,
+      String operationKey
   ) {
 
     validateAmount(amount);
+    validateOperationKey(operationKey);
 
-    Account account =
-        accountRepository
-            .findById(accountId)
-            .orElseThrow(
-                () -> new AccountNotFoundException(accountId)
-            );
+    int insertedRows =
+        balanceOperationRepository.tryCreateOperation(
+            operationKey,
+            accountId,
+            amount,
+            BalanceOperationType.CREDIT.name()
+        );
 
-    if (account.getStatus() != AccountStatus.ACTIVE) {
+    if (insertedRows == 0) {
+
+      BalanceOperation existingOperation =
+          balanceOperationRepository
+              .findByOperationKey(operationKey)
+              .orElseThrow(
+                  () -> new IllegalStateException(
+                      "Balance operation exists but could not be loaded."
+                  )
+              );
+
+      validateExistingOperation(
+          existingOperation,
+          accountId,
+          amount,
+          BalanceOperationType.CREDIT
+      );
+
+      if (existingOperation.getStatus()
+          == BalanceOperationStatus.COMPLETED) {
+
+        return getAccountResponse(accountId);
+      }
+
       throw new IllegalStateException(
-          "Account is not active."
+          "Balance operation is still being processed. Please retry."
       );
     }
 
@@ -243,6 +316,23 @@ public class SimpleAccountService implements AccountService {
 
     if (updatedRows == 0) {
 
+      Account account =
+          accountRepository
+              .findById(accountId)
+              .orElseThrow(
+                  () -> new AccountNotFoundException(
+                      accountId
+                  )
+              );
+
+      if (account.getStatus()
+          != AccountStatus.ACTIVE) {
+
+        throw new IllegalStateException(
+            "Account is not active."
+        );
+      }
+
       throw new IllegalStateException(
           "Account was modified by another transaction. Please retry."
       );
@@ -252,10 +342,89 @@ public class SimpleAccountService implements AccountService {
         accountRepository
             .findById(accountId)
             .orElseThrow(
-                () -> new AccountNotFoundException(accountId)
+                () -> new AccountNotFoundException(
+                    accountId
+                )
             );
 
+    int completedRows =
+        balanceOperationRepository.markAsCompleted(
+            operationKey,
+            updatedAccount.getBalance(),
+            updatedAccount.getAvailableBalance()
+        );
+
+    if (completedRows != 1) {
+
+      throw new IllegalStateException(
+          "Balance operation could not be completed."
+      );
+    }
+
     return accountMapper.toResponse(updatedAccount);
+  }
+
+  private AccountResponse getAccountResponse(UUID accountId) {
+
+    Account account =
+        accountRepository
+            .findById(accountId)
+            .orElseThrow(
+                () -> new AccountNotFoundException(
+                    accountId
+                )
+            );
+
+    return accountMapper.toResponse(account);
+  }
+
+  private void validateOperationKey(String operationKey) {
+
+    if (operationKey == null
+        || operationKey.isBlank()) {
+
+      throw new IllegalArgumentException(
+          "Idempotency-Key header is required."
+      );
+    }
+
+    if (operationKey.length() > 150) {
+
+      throw new IllegalArgumentException(
+          "Idempotency-Key must not exceed 150 characters."
+      );
+    }
+  }
+
+  private void validateExistingOperation(
+      BalanceOperation operation,
+      UUID accountId,
+      BigDecimal amount,
+      BalanceOperationType operationType
+  ) {
+
+    if (!operation.getAccountId().equals(accountId)) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used for another account."
+      );
+    }
+
+    if (operation.getAmount()
+        .compareTo(amount) != 0) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used with another amount."
+      );
+    }
+
+    if (operation.getOperationType()
+        != operationType) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used for another operation type."
+      );
+    }
   }
 
   private void validateAmount(BigDecimal amount) {

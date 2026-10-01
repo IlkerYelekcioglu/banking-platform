@@ -13,6 +13,8 @@ import lombok.Getter;
 @Setter
 public class TransactionCreateRequest {
 
+  private UUID eventId;
+
   @NotNull
   private UUID sourceAccountId;
 

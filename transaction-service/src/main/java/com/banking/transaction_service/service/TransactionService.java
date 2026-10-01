@@ -28,5 +28,4 @@ public interface TransactionService {
 
   void processFraudDecision(FraudDecisionEvent event);
 
-  void compensateTransaction(UUID transactionId);
 }

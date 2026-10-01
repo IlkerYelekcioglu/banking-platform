@@ -10,7 +10,7 @@ import java.util.UUID;
 
 @Service
 @RequiredArgsConstructor
-public class SimpleInboxService {
+public class InboxService {
   private final ProcessedEventRepository processedEventRepository;
 
   @Transactional

@@ -29,15 +29,31 @@ spring:
       key-serializer: org.apache.kafka.common.serialization.StringSerializer
       value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
 
-      properties:
+    consumer:
+        key-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        value-deserializer: org.apache.kafka.common.serialization.StringDeserializer
+        enable-auto-commit: false
+        auto-offset-reset: earliest
+
+    listener:
+        ack-mode: record
+
+
+    properties:
         spring.json.add.type.headers: false
 
 account-service:
   url: http://localhost:8082
 
-  transaction:
+transaction:
     compensation:
       max-retries: 5
       initial-delay-seconds: 30
       max-delay-seconds: 300
       claim-timeout-seconds: 120
+
+outbox:
+  max-retries: 5
+  initial-delay-seconds: 10
+  max-delay-seconds: 300
+  claim-timeout-seconds: 120

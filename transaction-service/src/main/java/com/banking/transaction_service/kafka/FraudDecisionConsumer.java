@@ -1,15 +1,13 @@
 package com.banking.transaction_service.kafka;
 
 import com.banking.transaction_service.event.FraudDecisionEvent;
-import com.banking.transaction_service.service.SimpleInboxService;
+import com.banking.transaction_service.service.InboxService;
 import com.banking.transaction_service.service.SimpleTransactionService;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import jakarta.transaction.Transactional;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.kafka.annotation.KafkaListener;
 import org.springframework.stereotype.Component;
-
 
 @Component
 @RequiredArgsConstructor
@@ -17,21 +15,17 @@ import org.springframework.stereotype.Component;
 public class FraudDecisionConsumer {
 
   private final SimpleTransactionService transactionService;
-
+  private final InboxService inboxService;
   private final ObjectMapper objectMapper;
 
-  private final SimpleInboxService inboxService;
-
   @KafkaListener(
-      topics = "bankcore.fraud.decisions",
+      topics = KafkaTopics.FRAUD_DECISIONS,
       groupId = "transaction-service"
   )
-  @Transactional
   public void consume(String message) {
 
     log.info(
-        "Fraud decision received. message={}",
-        message
+        "Fraud decision received."
     );
 
     try {
@@ -53,7 +47,7 @@ public class FraudDecisionConsumer {
       if (!newEvent) {
 
         log.info(
-            "Duplicate fraud decision event ignored. " +
+            "Duplicate fraud decision ignored. " +
                 "eventId={}, transactionId={}",
             event.getEventId(),
             event.getTransactionId()
@@ -62,7 +56,9 @@ public class FraudDecisionConsumer {
         return;
       }
 
-      transactionService.processFraudDecision(event);
+      transactionService.processFraudDecision(
+          event
+      );
 
     } catch (Exception exception) {
 
