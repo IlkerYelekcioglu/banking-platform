@@ -3,6 +3,7 @@ package com.banking.transaction_service.service;
 import com.banking.transaction_service.enums.TransactionStatus;
 import com.banking.transaction_service.repository.TransactionRepository;
 import java.time.LocalDateTime;
+import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
@@ -19,19 +20,24 @@ public class SimpleCompensationClaimService {
   @Transactional(
       propagation = Propagation.REQUIRES_NEW
   )
-  public boolean claim(
+  public String  claim(
       UUID transactionId
   ) {
+
+    String claimToken =
+        UUID.randomUUID().toString();
+
 
     int updatedRows =
         transactionRepository.claimCompensation(
             transactionId,
             TransactionStatus.COMPENSATION_REQUIRED,
             TransactionStatus.COMPENSATING,
-            LocalDateTime.now()
+            LocalDateTime.now(),
+            claimToken
         );
 
-    return updatedRows == 1;
+    return updatedRows == 1 ? claimToken : null;
   }
 
 

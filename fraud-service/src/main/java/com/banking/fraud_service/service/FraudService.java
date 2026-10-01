@@ -159,12 +159,8 @@ public class FraudService {
 
     FraudDecisionEvent decisionEvent =
         FraudDecisionEvent.builder()
-            .transactionId(
-                event.getTransactionId()
-            )
-            .transactionReference(
-                event.getTransactionReference()
-            )
+            .transactionId(event.getTransactionId())
+            .transactionReference(event.getTransactionReference())
             .fraudScore(fraudScore)
             .decision(decision)
             .reason(reason)

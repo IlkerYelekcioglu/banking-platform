@@ -134,6 +134,12 @@ public class Transaction extends BaseEntity {
   @Column(length = 1000)
   private String compensationFailureReason;
 
+  @Column(
+      length = 100,
+      unique = true
+  )
+  private String compensationClaimToken;
+
   @Version
   private Long version;
 

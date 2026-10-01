@@ -34,16 +34,17 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
       flushAutomatically = true
   )
   @Query("""
-        UPDATE Transaction t
-        SET
-            t.status = :compensatingStatus,
-            t.compensationClaimedAt = :claimedAt
-        WHERE
-            t.id = :transactionId
-            AND t.status = :requiredStatus
-    """)
-  int claimCompensation(@Param("transactionId") UUID transactionId,@Param("requiredStatus") TransactionStatus requiredStatus,@Param("compensatingStatus") TransactionStatus compensatingStatus, @Param("claimedAt") LocalDateTime claimedAt);
-
+    UPDATE Transaction t
+    SET
+        t.status = :compensatingStatus,
+        t.compensationClaimedAt = :claimedAt,
+        t.compensationClaimToken = :claimToken
+    WHERE
+        t.id = :transactionId
+        AND t.status = :requiredStatus
+        AND t.compensationCompleted = false
+""")
+  int claimCompensation(@Param("transactionId") UUID transactionId, @Param("requiredStatus") TransactionStatus requiredStatus, @Param("compensatingStatus") TransactionStatus compensatingStatus, @Param("claimedAt") LocalDateTime claimedAt, @Param("claimToken") String claimToken);
   @Query("""
     SELECT t
     FROM Transaction t
@@ -73,5 +74,24 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 """)
   int releaseStuckCompensation(@Param("transactionId") UUID transactionId,@Param("compensatingStatus") TransactionStatus compensatingStatus, @Param("requiredStatus") TransactionStatus requiredStatus, @Param("threshold") LocalDateTime threshold, @Param("retryAt") LocalDateTime retryAt);
 
+  @Modifying(
+      clearAutomatically = true,
+      flushAutomatically = true
+  )
+  @Query("""
+    UPDATE Transaction t
+    SET
+        t.status = :requiredStatus,
+        t.nextCompensationRetryAt = :retryAt,
+        t.compensationClaimedAt = null,
+        t.compensationClaimToken = null,
+        t.compensationFailureReason =
+            :failureReason
+    WHERE
+        t.id = :transactionId
+        AND t.status = :compensatingStatus
+        AND t.compensationClaimToken = :claimToken
+""")
+  int releaseCompensation(@Param("transactionId") UUID transactionId, @Param("compensatingStatus") TransactionStatus compensatingStatus, @Param("requiredStatus") TransactionStatus requiredStatus, @Param("retryAt") LocalDateTime retryAt, @Param("failureReason") String failureReason, @Param("claimToken") String claimToken);
 }
 

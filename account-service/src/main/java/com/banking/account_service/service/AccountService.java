@@ -39,12 +39,14 @@ public interface AccountService {
 
   AccountResponse debit(
       UUID accountId,
-      BigDecimal amount
+      BigDecimal amount,
+      String operationKey
   );
 
   AccountResponse credit(
       UUID accountId,
-      BigDecimal amount
+      BigDecimal amount,
+      String operationKey
   );
 
 }

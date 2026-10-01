@@ -26,9 +26,6 @@ public class TransactionController {
 
   private final CompensationService compensationService;
 
-  /**
-   * Yeni transaction oluşturur.
-   */
   @PostMapping
   public ResponseEntity<TransactionResponse> createTransaction(
       @Valid @RequestBody TransactionCreateRequest request) {
@@ -41,9 +38,6 @@ public class TransactionController {
         .body(response);
   }
 
-  /**
-   * Transaction ID ile transaction getirir.
-   */
   @GetMapping("/{transactionId}")
   public ResponseEntity<TransactionResponse> getTransaction(
       @PathVariable UUID transactionId) {
@@ -53,9 +47,6 @@ public class TransactionController {
     );
   }
 
-  /**
-   * Transaction reference ile transaction getirir.
-   */
   @GetMapping("/reference/{transactionReference}")
   public ResponseEntity<TransactionResponse> getByReference(
       @PathVariable String transactionReference) {
@@ -67,11 +58,6 @@ public class TransactionController {
     );
   }
 
-  /**
-   * Tüm Transaction ları çeker.
-   * @return
-   */
-
   @GetMapping
   public ResponseEntity<List<TransactionResponse>>
   getAllTransactions() {
@@ -81,9 +67,6 @@ public class TransactionController {
     );
   }
 
-  /**
-   * Bir hesabın yaptığı ve aldığı transaction'ları getirir.
-   */
   @GetMapping("/account/{accountId}")
   public ResponseEntity<List<TransactionResponse>>
   getAccountTransactions(
@@ -101,7 +84,7 @@ public class TransactionController {
       @PathVariable UUID transactionId
   ) {
 
-    compensationService.retryCompensation(transactionId);
+    compensationService.manuallyCompensate(transactionId);
 
     return ResponseEntity.noContent().build();
   }

@@ -9,6 +9,7 @@ import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 
 @FeignClient(
     name = "account-service",
@@ -26,15 +27,24 @@ public interface AccountClient {
       @PathVariable("accountId") UUID accountId
   );
 
-  @PostMapping("/api/v1/accounts/{accountId}/debit")
+  @PostMapping(
+      "/api/v1/accounts/{accountId}/debit"
+  )
   AccountResponse debit(
-      @PathVariable("accountId") UUID accountId,
-      @RequestBody BalanceOperationRequest request
+      @PathVariable UUID accountId,
+      @RequestBody BalanceOperationRequest request,
+      @RequestHeader("Idempotency-Key")
+      String operationKey
   );
 
-  @PostMapping("/api/v1/accounts/{accountId}/credit")
+  @PostMapping(
+      "/api/v1/accounts/{accountId}/credit"
+  )
   AccountResponse credit(
-      @PathVariable("accountId") UUID accountId,
-      @RequestBody BalanceOperationRequest request
+      @PathVariable UUID accountId,
+      @RequestBody BalanceOperationRequest request,
+      @RequestHeader("Idempotency-Key")
+      String operationKey
   );
+
 }

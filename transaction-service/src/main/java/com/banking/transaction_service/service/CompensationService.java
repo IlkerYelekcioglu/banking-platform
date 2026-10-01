@@ -4,10 +4,11 @@ import java.util.UUID;
 
 public interface CompensationService {
 
-  void retryCompensation(UUID transactionId);
+  void retryCompensation(UUID transactionId,String claimToken);
 
   void processPendingCompensations();
 
   void recoverStuckCompensations();
 
+  void manuallyCompensate(UUID transactionId);
 }

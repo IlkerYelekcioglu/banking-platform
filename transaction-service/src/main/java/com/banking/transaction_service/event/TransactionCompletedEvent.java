@@ -16,6 +16,8 @@ import lombok.Setter;
 @AllArgsConstructor
 public class TransactionCompletedEvent {
 
+  private UUID eventId;
+
   private UUID transactionId;
 
   private String transactionReference;

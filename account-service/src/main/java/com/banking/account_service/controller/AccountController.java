@@ -90,29 +90,25 @@ public class AccountController {
     );
   }
 
-  @PostMapping("/{accountId}/debit")
-  public ResponseEntity<AccountResponse> debit(
-      @PathVariable UUID accountId,
-      @Valid @RequestBody BalanceOperationRequest request) {
-
-    return ResponseEntity.ok(
-        accountService.debit(
-            accountId,
-            request.getAmount()
-        )
-    );
-  }
-
   @PostMapping("/{accountId}/credit")
   public ResponseEntity<AccountResponse> credit(
       @PathVariable UUID accountId,
-      @Valid @RequestBody BalanceOperationRequest request) {
+ @RequestBody
+      BalanceOperationRequest request,
 
-    return ResponseEntity.ok(
+      @RequestHeader("Idempotency-Key")
+      String operationKey
+  ) {
+
+    AccountResponse response =
         accountService.credit(
             accountId,
-            request.getAmount()
-        )
+            request.getAmount(),
+            operationKey
+        );
+
+    return ResponseEntity.ok(
+        response
     );
   }
 }
