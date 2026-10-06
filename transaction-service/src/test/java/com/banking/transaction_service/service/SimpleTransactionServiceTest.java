@@ -58,10 +58,6 @@ class SimpleTransactionServiceTest {
     destinationAccountId = UUID.randomUUID();
   }
 
-  // ---------------------------------------------------------
-  // SUCCESSFUL TRANSFER
-  // ---------------------------------------------------------
-
   @Test
   void createTransaction_shouldCompleteTransferSuccessfully() {
 
@@ -161,10 +157,6 @@ class SimpleTransactionServiceTest {
         .save(any(Transaction.class));
   }
 
-  // ---------------------------------------------------------
-  // SAME ACCOUNT
-  // ---------------------------------------------------------
-
   @Test
   void createTransaction_shouldRejectSameSourceAndDestination() {
 
@@ -188,9 +180,6 @@ class SimpleTransactionServiceTest {
         .save(any(Transaction.class));
   }
 
-  // ---------------------------------------------------------
-  // IDEMPOTENCY
-  // ---------------------------------------------------------
 
   @Test
   void createTransaction_shouldReturnExistingTransaction_whenIdempotencyKeyExists() {
@@ -243,10 +232,6 @@ class SimpleTransactionServiceTest {
         .save(any(Transaction.class));
   }
 
-  // ---------------------------------------------------------
-  // CURRENCY MISMATCH
-  // ---------------------------------------------------------
-
   @Test
   void createTransaction_shouldRejectCurrencyMismatch() {
 
@@ -291,10 +276,6 @@ class SimpleTransactionServiceTest {
     verify(accountClient, never())
         .credit(any(UUID.class), any());
   }
-
-  // ---------------------------------------------------------
-  // DEBIT FAILURE
-  // ---------------------------------------------------------
 
   @Test
   void createTransaction_shouldMarkFailed_whenDebitFails() {
@@ -358,10 +339,6 @@ class SimpleTransactionServiceTest {
             any(BalanceOperationRequest.class)
         );
   }
-
-  // ---------------------------------------------------------
-  // CREDIT FAILURE + COMPENSATION
-  // ---------------------------------------------------------
 
   @Test
   void createTransaction_shouldCompensateDebit_whenCreditFails() {
@@ -447,10 +424,6 @@ class SimpleTransactionServiceTest {
             any(BalanceOperationRequest.class)
         );
   }
-
-  // ---------------------------------------------------------
-  // HELPERS
-  // ---------------------------------------------------------
 
   private TransactionCreateRequest createRequest() {
 

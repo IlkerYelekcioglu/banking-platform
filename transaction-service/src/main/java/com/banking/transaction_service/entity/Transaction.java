@@ -10,6 +10,7 @@ import jakarta.persistence.EnumType;
 import jakarta.persistence.Enumerated;
 import jakarta.persistence.Index;
 import jakarta.persistence.Table;
+import jakarta.persistence.UniqueConstraint;
 import jakarta.persistence.Version;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -23,18 +24,36 @@ import lombok.Setter;
 @Entity
 @Table(
     name = "transactions",
+    uniqueConstraints = {
+        @UniqueConstraint(
+            name = "uk_transaction_idempotency_key",
+            columnNames = "idempotency_key"
+        ),
+        @UniqueConstraint(
+            name = "uk_transaction_reference",
+            columnNames = "transaction_reference"
+        )
+    },
     indexes = {
         @Index(
-            name = "idx_transaction_reference",
-            columnList = "transactionReference"
+            name = "idx_transaction_source_account",
+            columnList = "source_account_id"
         ),
         @Index(
-            name = "idx_source_account",
-            columnList = "sourceAccountId"
+            name = "idx_transaction_destination_account",
+            columnList = "destination_account_id"
         ),
         @Index(
-            name = "idx_destination_account",
-            columnList = "destinationAccountId"
+            name = "idx_transaction_status",
+            columnList = "status"
+        ),
+        @Index(
+            name = "idx_compensation_retry",
+            columnList = "status,nextCompensationRetryAt"
+        ),
+        @Index(
+            name = "idx_transaction_idempotency",
+            columnList = "idempotencyKey"
         )
     }
 )

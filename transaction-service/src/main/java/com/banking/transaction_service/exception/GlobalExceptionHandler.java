@@ -126,4 +126,21 @@ public class GlobalExceptionHandler {
         .status(HttpStatus.CONFLICT)
         .body(error);
   }
+
+  @ExceptionHandler(IdempotencyKeyConflictException.class)
+  public ResponseEntity<ErrorResponse>
+  handleIdempotencyKeyConflict(
+      IdempotencyKeyConflictException exception
+  ) {
+
+    ErrorResponse error =
+        new ErrorResponse(
+            "IDEMPOTENCY_KEY_CONFLICT",
+            exception.getMessage()
+        );
+
+    return ResponseEntity
+        .status(HttpStatus.CONFLICT)
+        .body(error);
+  }
 }
