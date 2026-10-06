@@ -18,4 +18,11 @@ public class BalanceOperationRequest {
       message = "Amount must be greater than zero"
   )
   private BigDecimal amount;
+
+  public BalanceOperationRequest(BigDecimal amount) {
+    this.amount = amount;
+  }
+
+  public BalanceOperationRequest() {
+  }
 }

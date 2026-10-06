@@ -11,6 +11,7 @@ import com.banking.transaction_service.enums.TransactionStatus;
 import com.banking.transaction_service.event.FraudDecisionEvent;
 import com.banking.transaction_service.event.TransactionCompletedEvent;
 import com.banking.transaction_service.event.TransactionRequestedEvent;
+import com.banking.transaction_service.exception.IdempotencyKeyConflictException;
 import com.banking.transaction_service.exception.InsufficientBalanceException;
 import com.banking.transaction_service.exception.TransactionNotFoundException;
 import com.banking.transaction_service.exception.InvalidTransactionException;
@@ -21,6 +22,7 @@ import com.banking.transaction_service.repository.TransactionRepository;
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.DataIntegrityViolationException;
 import org.springframework.transaction.annotation.Transactional;
 import java.math.BigDecimal;
 import java.time.LocalDateTime;
@@ -41,47 +43,45 @@ public class SimpleTransactionService
   private final AccountClient accountClient;
   private final OutboxEventRepository outboxEventRepository;
   private final ObjectMapper objectMapper;
+  private final TransactionCreationService transactionCreationService;
 
   @Override
   @Transactional
   public TransactionResponse createTransaction(
-      TransactionCreateRequest request) {
+      TransactionCreateRequest request
+  ) {
 
+    validateIdempotencyKey(
+        request.getIdempotencyKey()
+    );
 
     Transaction existingTransaction =
         transactionRepository
             .findByIdempotencyKey(
-                request.getIdempotencyKey())
+                request.getIdempotencyKey()
+            )
             .orElse(null);
 
     if (existingTransaction != null) {
 
+      validateIdempotencyRequest(
+          existingTransaction,
+          request
+      );
+
       return transactionMapper.toResponse(
-          existingTransaction);
+          existingTransaction
+      );
     }
 
-    if (request.getSourceAccountId()
-        .equals(request.getDestinationAccountId())) {
+    validateTransactionRequest(
+        request
+    );
 
-      throw new InvalidTransactionException(
-          "Source account and destination account cannot be the same.");
-    }
-
-    if (request.getAmount() == null
-        || request.getAmount()
-        .compareTo(BigDecimal.ZERO) <= 0) {
-
-      throw new InvalidTransactionException(
-          "Transaction amount must be greater than zero.");
-    }
-
-    /*
-     * Source account.
-     */
     AccountResponse sourceAccount =
         getAccount(
-            request.getSourceAccountId())
-        ;
+            request.getSourceAccountId()
+        );
 
     AccountResponse destinationAccount =
         getAccount(
@@ -110,63 +110,41 @@ public class SimpleTransactionService
     );
 
     Transaction transaction =
-        Transaction.builder()
-            .transactionReference(
-                generateTransactionReference()
-            )
-            .sourceAccountId(
-                request.getSourceAccountId()
-            )
-            .destinationAccountId(
-                request.getDestinationAccountId()
-            )
-            .amount(
-                request.getAmount()
-            )
-            .currency(
-                request.getCurrency()
-            )
-            .transactionType(
-                request.getTransactionType()
-            )
-            .status(
-                TransactionStatus.PENDING
-            )
-            .description(
-                request.getDescription()
-            )
-            .channel(
-                request.getChannel()
-            )
-            .ipAddress(
-                request.getIpAddress()
-            )
-            .deviceId(
-                request.getDeviceId()
-            )
-            .location(
-                request.getLocation()
-            )
-            .transactionDate(
-                LocalDateTime.now()
-            )
-            .idempotencyKey(
-                request.getIdempotencyKey()
-            )
-            .build();
-
-    Transaction savedTransaction =
-        transactionRepository.save(
-            transaction
+        buildTransaction(
+            request
         );
 
-    createTransactionRequestedOutboxEvent(
-        savedTransaction
-    );
+    try {
 
-    return transactionMapper.toResponse(
-        savedTransaction
-    );
+      Transaction savedTransaction =
+          transactionCreationService.create(
+              transaction
+          );
+
+      return transactionMapper.toResponse(
+          savedTransaction
+      );
+
+    } catch (DataIntegrityViolationException exception) {
+
+      Transaction concurrentTransaction =
+          transactionRepository
+              .findByIdempotencyKey(
+                  request.getIdempotencyKey()
+              )
+              .orElseThrow(
+                  () -> exception
+              );
+
+      validateIdempotencyRequest(
+          concurrentTransaction,
+          request
+      );
+
+      return transactionMapper.toResponse(
+          concurrentTransaction
+      );
+    }
   }
 
   @Override
@@ -621,6 +599,162 @@ public class SimpleTransactionService
       throw new TransactionProcessingException(
           "Failed to create transaction completed event.",
           exception
+      );
+    }
+  }
+  private Transaction buildTransaction(
+      TransactionCreateRequest request
+  ) {
+
+    return Transaction.builder()
+        .transactionReference(
+            generateTransactionReference()
+        )
+        .sourceAccountId(
+            request.getSourceAccountId()
+        )
+        .destinationAccountId(
+            request.getDestinationAccountId()
+        )
+        .amount(
+            request.getAmount()
+        )
+        .currency(
+            request.getCurrency()
+        )
+        .transactionType(
+            request.getTransactionType()
+        )
+        .status(
+            TransactionStatus.PENDING
+        )
+        .description(
+            request.getDescription()
+        )
+        .channel(
+            request.getChannel()
+        )
+        .ipAddress(
+            request.getIpAddress()
+        )
+        .deviceId(
+            request.getDeviceId()
+        )
+        .location(
+            request.getLocation()
+        )
+        .transactionDate(
+            LocalDateTime.now()
+        )
+        .idempotencyKey(
+            request.getIdempotencyKey()
+        )
+        .build();
+  }
+  private void validateIdempotencyKey(
+      String idempotencyKey
+  ) {
+
+    if (idempotencyKey == null
+        || idempotencyKey.isBlank()) {
+
+      throw new InvalidTransactionException(
+          "Idempotency-Key is required."
+      );
+    }
+
+    if (idempotencyKey.length() > 100) {
+
+      throw new InvalidTransactionException(
+          "Idempotency-Key must not exceed 100 characters."
+      );
+    }
+  }
+  private void validateTransactionRequest(
+      TransactionCreateRequest request
+  ) {
+
+    if (request.getSourceAccountId()
+        .equals(request.getDestinationAccountId())) {
+
+      throw new InvalidTransactionException(
+          "Source account and destination account cannot be the same."
+      );
+    }
+
+    if (request.getAmount() == null
+        || request.getAmount()
+        .compareTo(BigDecimal.ZERO) <= 0) {
+
+      throw new InvalidTransactionException(
+          "Transaction amount must be greater than zero."
+      );
+    }
+
+    if (request.getCurrency() == null) {
+
+      throw new InvalidTransactionException(
+          "Transaction currency is required."
+      );
+    }
+
+    if (request.getTransactionType() == null) {
+
+      throw new InvalidTransactionException(
+          "Transaction type is required."
+      );
+    }
+  }
+  private void validateIdempotencyRequest(
+      Transaction existingTransaction,
+      TransactionCreateRequest request
+  ) {
+
+    if (!existingTransaction
+        .getSourceAccountId()
+        .equals(request.getSourceAccountId())) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used "
+              + "with another source account."
+      );
+    }
+
+    if (!existingTransaction
+        .getDestinationAccountId()
+        .equals(request.getDestinationAccountId())) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used "
+              + "with another destination account."
+      );
+    }
+
+    if (existingTransaction
+        .getAmount()
+        .compareTo(request.getAmount()) != 0) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used "
+              + "with another amount."
+      );
+    }
+
+    if (existingTransaction.getCurrency()
+        != request.getCurrency()) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used "
+              + "with another currency."
+      );
+    }
+
+    if (existingTransaction.getTransactionType()
+        != request.getTransactionType()) {
+
+      throw new IdempotencyKeyConflictException(
+          "Idempotency key was already used "
+              + "with another transaction type."
       );
     }
   }

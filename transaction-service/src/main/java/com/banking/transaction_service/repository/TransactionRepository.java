@@ -25,6 +25,8 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
 
   boolean existsByIdempotencyKey(String idempotencyKey);
 
+  long countByIdempotencyKey(String idempotencyKey);
+
   List<Transaction> findByStatus(TransactionStatus status);
 
   List<Transaction> findTop100ByStatusAndNextCompensationRetryAtLessThanEqualOrderByNextCompensationRetryAtAsc(TransactionStatus status, LocalDateTime currentTime);
@@ -93,5 +95,7 @@ public interface TransactionRepository extends JpaRepository<Transaction, UUID> 
         AND t.compensationClaimToken = :claimToken
 """)
   int releaseCompensation(@Param("transactionId") UUID transactionId, @Param("compensatingStatus") TransactionStatus compensatingStatus, @Param("requiredStatus") TransactionStatus requiredStatus, @Param("retryAt") LocalDateTime retryAt, @Param("failureReason") String failureReason, @Param("claimToken") String claimToken);
+
+  List<Transaction> findByStatusAndCompensationClaimedAtBefore(TransactionStatus transactionStatus, LocalDateTime timeout);
 }
 

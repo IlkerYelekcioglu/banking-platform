@@ -3,7 +3,6 @@ package com.banking.transaction_service.service;
 import com.banking.transaction_service.enums.TransactionStatus;
 import com.banking.transaction_service.repository.TransactionRepository;
 import java.time.LocalDateTime;
-import java.util.Optional;
 import java.util.UUID;
 import lombok.RequiredArgsConstructor;
 import org.springframework.stereotype.Service;
